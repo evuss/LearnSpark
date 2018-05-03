@@ -1,0 +1,128 @@
+---
+title: "Spark lecture"
+output: html_notebook
+---
+
+#Spark
+*.logs
+
+Spark is a Big data tool (a unified analytics engine for large-scale data processing). Use by default a language called Scala (programming language). Spark cluster is working locally on our machine. 
+
+When hitting SparkUI
+- Jobs shows us what's running
+- Stages shows us in what stages our jobs are in
+- Storage is overview of the storage
+- Environment
+- Excecutors shows us how much activity is currently happening
+- SQL is showing if any SQL is using the Spark cluster
+
+Hadoop is for XX
+
+spark.rstudio.com has all info about the 
+
+```{r}
+plot(cars)
+```
+
+
+HDInsight is a XX
+
+# Demo in Spark
+```{r}
+library(sparklyr)
+library(dplyr)
+library(nycflights13)
+
+sc <- spark_connect(master = "local")
+
+```
+
+
+```{r}
+summary(flights)
+flights_tbl <- copy_to(sc, flights, "flights", overwrite = TRUE)
+
+```
+In spark, all data is stored in memory. 
+
+# Spark functions
+Functions what begins with these 
+ft = Feature Transformation for working with columns
+ml = Spark ML for working with algorithms
+sdf = spark DataFrame working with a dataframe or table
+spark = managing the spark connection
+
+when using these spark functions, R calls for Spark to excecute the code and then waits for it to get returned. 
+
+## Try out Spark functions
+```{r}
+flights_tbl %>% 
+  sdf_partition(training=0.7, test=0.3, seed=888)->
+  partitions
+```
+This will only save the code and not run it from spark.  
+
+```{r}
+partitions$training %>% 
+  ml_linear_regression(arr_delay~carrier + origin + dest + hour) ->
+  fit
+```
+
+Once we are calling the spark function, it will run it against spark. 
+
+```{r}
+summary(partitions)
+```
+the collect() function inside of a spark function will  
+
+```{r}
+library(ggplot2)
+
+sdf_predict(fit, partitions$test) %>% 
+  sdf_register("scored_data")
+
+tbl(sc, "scored_data") %>% 
+  select(arr_delay, prediction) %>% 
+  collect() ->
+  predicted_vals
+
+sdf_predict(fit, partitions$test) %>% 
+  collect() %>% 
+  ggplot(aes(x=arr_delay, y=prediction))+
+  geom_abline(lty="dashed", col="red")+
+  geom_jitter(alpha=.5)+
+  coord_fixed(ratio=1) +
+  labs(
+    x = "Actual arrdelay",
+    y = "Predicted arrdelay",
+    title = "Predicted vs Actual"
+  )
+
+
+```
+
+
+## Other Spark functions
+
+K-means in Spark vs R
+
+We can do the same code in R and Spark, but in Spark we don't need to save it as a dataframe. When spark is runned, it is changing Petal.Width to Petal_Width when the model is runned. 
+
+```{r}
+iris_tbl <- copy_to(sc, iris, "iris", overwrite = TRUE) # here we copy the data to spark
+cl <- iris %>%
+  select(Petal.Length, Petal.Width) %>% 
+  kmeans(centers = 3) 
+
+centers <- as.data.frame(cl$centers)
+
+model <- iris_tbl %>% 
+  select(Petal_Width, Petal_Length) %>% 
+  ml_kmeans(centers = 3)
+
+```
+
+# Datasets in R
+For survival regression in R and Spark : ovarian got good examples
+For regression trees etc : iris 
+For linear regression etc : ny
